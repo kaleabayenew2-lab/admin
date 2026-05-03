@@ -21,7 +21,7 @@ export const PHARMACY_SERVICE_MAP: Record<string, string[]> = {
 export const HOSPITAL_TYPES = Object.keys(HOSPITAL_SERVICE_MAP);
 export const PHARMACY_TYPES = Object.keys(PHARMACY_SERVICE_MAP);
 
-export const API_BASE_URL = 'http://localhost:5000';
+export const API_BASE_URL = 'https://backend-6tzt.onrender.com';
 
 export const VALIDATION_RULES = {
   NAME_MIN_LENGTH: 3,

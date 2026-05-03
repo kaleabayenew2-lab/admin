@@ -50,7 +50,7 @@ export interface FacilityApiResponse {
   count: number;
 }
 
-const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'https://backend-6tzt.onrender.com';
 
 export const facilityApi = {
   // Get all facilities

@@ -27,7 +27,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       if (mounted) setChecking(true);
       try {
-        const base = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+        const base = import.meta.env.VITE_API_BASE || 'https://backend-6tzt.onrender.com';
         const withCred = (import.meta.env.VITE_API_WITH_CREDENTIALS || 'false').toLowerCase() === 'true';
         const res = await fetch(`${base.replace(/\/$/, '')}/health`, { method: 'GET', credentials: withCred ? 'include' : 'same-origin', cache: 'no-store' });
         if (res && res.ok) {
@@ -36,7 +36,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       } catch (err) {
         try {
-          const base = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+          const base = import.meta.env.VITE_API_BASE || 'https://backend-6tzt.onrender.com';
           // try a lightweight fetch as a fallback (no-cors mode)
           await fetch(base, { method: 'HEAD', cache: 'no-store', mode: 'no-cors' });
           if (mounted) setOnline(true);
