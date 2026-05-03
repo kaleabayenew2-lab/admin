@@ -1,0 +1,8 @@
+error={validationErrors.includes('email') || emailExists}
+                  helperText={
+                    emailExists 
+                      ? 'This email is already registered' 
+                      : validationErrors.includes('email') 
+                        ? 'Please enter a valid email address' 
+                        : 'Email is required'
+                  }

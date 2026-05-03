@@ -1,0 +1,1 @@
+// This file is not needed with Vite. Use the 'proxy' option in vite.config.ts instead.

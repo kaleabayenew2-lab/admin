@@ -1,0 +1,40 @@
+<Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Password (Optional)"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleInputChange('password')}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">🔐</InputAdornment>,
+                  }}
+                  error={validationErrors.includes('password')}
+                  helperText="Optional: Strong password (8+ chars, uppercase, lowercase, number, special)"
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.emergency}
+                      onChange={handleInputChange('emergency')}
+                      color="warning"
+                    />
+                  }
+                  label="Emergency Services Available"
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Notes (Optional)"
+                  multiline
+                  rows={3}
+                  value={formData.notes}
+                  onChange={handleInputChange('notes')}
+                  placeholder="Add any additional notes about this facility..."
+                  helperText="Optional: Enter any additional information or special instructions"
+                />
+              </Grid>

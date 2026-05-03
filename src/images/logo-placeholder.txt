@@ -1,0 +1,7 @@
+# Logo Placeholder
+# Please save your uploaded logo image file in this folder as:
+# - logo.png (recommended)
+# - logo.svg (if vector format)
+# - logo.jpg (alternative)
+
+# Once saved, the logo will be integrated into the NavBar component.

@@ -1,0 +1,1610 @@
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Box,
+  Tabs,
+  Tab,
+  TextField,
+  InputAdornment,
+  Typography,
+  Grid,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Chip,
+  Paper,
+  Divider,
+  Alert,
+  CircularProgress,
+  Switch,
+  FormControlLabel
+} from '@mui/material';
+import { LocalHospital, MedicalServices, Phone, Email, LocationOn, Schedule, Business, Person, Save, Cancel, MyLocation, Add, Visibility, VisibilityOff, CheckCircle, Error } from '@mui/icons-material';
+
+interface CreateFacilityPopupProps {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (facility: any) => void;
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`facility-tabpanel-${index}`}
+      aria-labelledby={`facility-tab-${index}`}
+      style={{ height: 'calc(90vh - 200px)', overflow: 'auto' }}
+      {...other}
+    >
+      {value === index && <Box sx={{ p: 3, height: '100%' }}>{children}</Box>}
+    </div>
+  );
+}
+
+// Service maps matching Dashboard.tsx exactly
+const HOSPITAL_SERVICE_MAP: Record<string, string[]> = {
+  'General Hospitals': ['Emergency', 'Surgery', 'Radiology', 'Pediatrics', 'Maternity', 'Cardiology', 'Laboratory', 'Outpatient'],
+  'Specialized Hospitals': ['Specialized Care', 'Radiology', 'Laboratory', 'Rehabilitation'],
+  'Internal / Medical Hospitals': ['Internal Medicine', 'Cardiology', 'Endocrinology', 'Laboratory'],
+  'Surgical Hospitals': ['Surgery', 'Anesthesiology', 'Operative Care', 'Radiology'],
+  'Maternal & Child Hospitals': ['Maternity', 'Pediatrics', 'Neonatal', 'Obstetrics'],
+  'Teaching & Referral Hospitals': ['Emergency', 'Surgery', 'Radiology', 'Research', 'Laboratory', 'Teaching Clinics'],
+  'Clinics & Primary Care Facilities': ['General Practice', 'Outpatient', 'Vaccination', 'Basic Diagnostics']
+};
+
+const PHARMACY_SERVICE_MAP: Record<string, string[]> = {
+  'Hospital Pharmacy': ['Inpatient Dispensing', 'Clinical Pharmacy Support', 'Sterile Preparations'],
+  'Community (Retail) Pharmacy': ['Retail Dispensing', 'OTC Advice', 'Vaccination Services'],
+  'Clinical Pharmacy': ['Medication Review', 'Therapeutic Drug Monitoring', 'Clinical Consults'],
+  'Industrial Pharmacy': ['Manufacturing Support', 'Quality Control'],
+  'Wholesale / Distribution Pharmacy': ['Bulk Distribution', 'Logistics'],
+  'Compounding Pharmacy': ['Non-sterile Compounding', 'Sterile Compounding'],
+  'Regulatory / Public Health Pharmacy': ['Policy Support', 'Surveillance', 'Public Vaccination']
+};
+
+const HOSPITAL_TYPES = Object.keys(HOSPITAL_SERVICE_MAP);
+const PHARMACY_TYPES = Object.keys(PHARMACY_SERVICE_MAP);
+
+export default function CreateFacilityPopup({ open, onClose, onCreate }: CreateFacilityPopupProps) {
+  const [tabValue, setTabValue] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [nameExists, setNameExists] = useState(false);
+  const [checkingName, setCheckingName] = useState(false);
+  const [otpAttempts, setOtpAttempts] = useState(0);
+  const [otpLockedUntil, setOtpLockedUntil] = useState<Date | null>(null);
+  const [isOtpLocked, setIsOtpLocked] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    openingHoursType: '24hours',
+    customOpeningHours: '',
+    ownership: '',
+    username: '',
+    password: '',
+    latitude: '',
+    longitude: '',
+    type: 'hospital',
+    hospitalType: '',
+    pharmacyType: '',
+    services: [] as string[],
+    emergency: false,
+    notes: ''
+  });
+  const [servicesDone, setServicesDone] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [showOTPDialog, setShowOTPDialog] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isSendingOTP, setIsSendingOTP] = useState(false);
+  const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      phone: '',
+      email: '',
+      address: '',
+      openingHoursType: '24hours',
+      customOpeningHours: '',
+      ownership: '',
+      username: '',
+      password: '',
+      latitude: '',
+      longitude: '',
+      type: 'hospital',
+      hospitalType: '',
+      pharmacyType: '',
+      services: [],
+      emergency: false,
+      notes: ''
+    });
+    setTabValue(0);
+    setServicesDone(false);
+    setValidationErrors([]);
+    setIsSubmitting(false);
+    setShowOTPDialog(false);
+    setOtpCode('');
+    setResendTimer(0);
+    setIsSendingOTP(false);
+    setIsVerifyingOTP(false);
+    setShowPassword(false);
+    setEmailExists(false);
+    setPhoneExists(false);
+    setCheckingEmail(false);
+    setCheckingPhone(false);
+    setNameExists(false);
+    setCheckingName(false);
+    setOtpAttempts(0);
+    setOtpLockedUntil(null);
+    setIsOtpLocked(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+    const newType = newValue === 0 ? 'hospital' : 'pharmacy';
+    setFormData(prev => ({
+      ...prev,
+      type: newType,
+      hospitalType: newType === 'hospital' ? prev.hospitalType : '',
+      pharmacyType: newType === 'pharmacy' ? prev.pharmacyType : '',
+      services: []
+    }));
+    setServicesDone(false);
+    setValidationErrors([]);
+  };
+
+  const handleInputChange = (field: string) => (event: any) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Check name uniqueness when name field changes
+    if (field === 'name') {
+      checkNameUniqueness(value);
+    }
+  };
+
+  const handlePhoneChange = (event: any) => {
+    let value = event.target.value;
+    // Remove any non-digit characters
+    value = value.replace(/\D/g, '');
+    
+    // Limit to exactly 9 digits and ensure it starts with 9 or 7
+    if (value.length <= 9) {
+      // Only allow if it's empty, starts with 9, or starts with 7
+      if (value === '' || (value.length >= 1 && (value.startsWith('9') || value.startsWith('7')))) {
+        setFormData(prev => ({
+          ...prev,
+          phone: value
+        }));
+        
+        // Check phone uniqueness in real-time when 9 digits are entered
+        if (value.length === 9) {
+          checkPhoneUniqueness(value);
+        } else {
+          setPhoneExists(false);
+        }
+      }
+    }
+    
+    // Clear phone validation error if valid
+    if (validationErrors.includes('phone') && value.length === 9 && (value.startsWith('9') || value.startsWith('7'))) {
+      setValidationErrors(prev => prev.filter(err => err !== 'phone'));
+    }
+  };
+
+  const handleEmailChange = (event: any) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      email: value
+    }));
+    
+    // Clear email validation error if valid
+    if (validationErrors.includes('email') && isValidEmail(value)) {
+      setValidationErrors(prev => prev.filter(err => err !== 'email'));
+    }
+    
+    // Check email uniqueness in real-time
+    if (isValidEmail(value)) {
+      checkEmailUniqueness(value);
+    } else {
+      setEmailExists(false);
+    }
+  };
+
+  const isValidEmail = (email: string) => {
+    if (!email.trim()) return false; // Email is now required
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const isValidPassword = (password: string) => {
+    if (!password) return true; // Password is optional, but if provided, must be strong
+    
+    // Strong password validation:
+    // - At least 8 characters
+    // - At least one uppercase letter
+    // - At least one lowercase letter
+    // - At least one number
+    // - At least one special character
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    if (password.length < minLength) return false;
+    if (!hasUpperCase) return false;
+    if (!hasLowerCase) return false;
+    if (!hasNumber) return false;
+    if (!hasSpecialChar) return false;
+    
+    return true;
+  };
+
+  const handleSendOTP = async () => {
+    setIsSendingOTP(true);
+    try {
+      const facilityName = formData.name || 'Facility';
+      
+      // Send OTP via backend API
+      const response = await fetch(`http://localhost:5000/api/otp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identifier: formData.email,
+          method: 'email',
+          facilityName: facilityName
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setShowOTPDialog(true);
+        setResendTimer(60); // 60 second countdown
+        
+        // Start countdown timer
+        const timer = setInterval(() => {
+          setResendTimer(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        try {
+          window.dispatchEvent(new CustomEvent('admin:toast', { 
+            detail: { type: 'success', message: result.message } 
+          }));
+        } catch(e) {}
+        
+        // For development, show the OTP in console
+        if (result.developmentOTP) {
+          console.log('Development OTP:', result.developmentOTP);
+        }
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      try {
+        window.dispatchEvent(new CustomEvent('admin:toast', { 
+          detail: { type: 'error', message: error.message || 'Failed to send OTP. Please try again.' } 
+        }));
+      } catch(e) {}
+    } finally {
+      setIsSendingOTP(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    // Check if OTP is locked due to too many attempts
+    if (isOtpLocked && otpLockedUntil) {
+      const now = new Date();
+      if (now < otpLockedUntil) {
+        const remainingTime = Math.ceil((otpLockedUntil.getTime() - now.getTime()) / (1000 * 60));
+        try {
+          window.dispatchEvent(new CustomEvent('admin:toast', { 
+            detail: { 
+              type: 'error', 
+              message: `Too many failed attempts. Please try again in ${remainingTime} minutes.` 
+            } 
+          }));
+        } catch(e) {}
+        return;
+      } else {
+        // Lock period expired, reset attempts
+        setOtpAttempts(0);
+        setIsOtpLocked(false);
+        setOtpLockedUntil(null);
+      }
+    }
+
+    if (otpCode.length !== 6) {
+      try {
+        window.dispatchEvent(new CustomEvent('admin:toast', { 
+          detail: { type: 'error', message: 'Please enter 6-digit OTP code' } 
+        }));
+      } catch(e) {}
+      return;
+    }
+
+    setIsVerifyingOTP(true);
+    try {
+      // Verify OTP via backend API
+      const response = await fetch(`http://localhost:5000/api/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identifier: formData.email,
+          code: otpCode,
+          method: 'email'
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setShowOTPDialog(false);
+        setOtpCode('');
+        setOtpAttempts(0); // Reset attempts on success
+        setIsOtpLocked(false);
+        setOtpLockedUntil(null);
+        
+        // Continue with facility creation
+        await createFacility();
+        
+        try {
+          window.dispatchEvent(new CustomEvent('admin:toast', { 
+            detail: { type: 'success', message: result.message } 
+          }));
+        } catch(e) {}
+      } else {
+        // Increment attempt counter on failed OTP
+        const newAttempts = otpAttempts + 1;
+        setOtpAttempts(newAttempts);
+        
+        // Check if this is the 3rd failed attempt
+        if (newAttempts >= 3) {
+          // Lock OTP for 30 minutes
+          const lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+          setOtpLockedUntil(lockUntil);
+          setIsOtpLocked(true);
+          
+          try {
+            window.dispatchEvent(new CustomEvent('admin:toast', { 
+              detail: { 
+                type: 'error', 
+                message: 'Too many failed attempts. OTP is locked for 30 minutes. Please try again later.' 
+              } 
+            }));
+          } catch(e) {}
+        } else {
+          const remainingAttempts = 3 - newAttempts;
+          try {
+            window.dispatchEvent(new CustomEvent('admin:toast', { 
+              detail: { 
+                type: 'error', 
+                message: `${result.message || 'Invalid OTP.'} ${remainingAttempts} attempts remaining.` 
+              } 
+            }));
+          } catch(e) {}
+        }
+        
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      // Error is already handled above, but we need to ensure the finally block runs
+      if (otpAttempts < 3) {
+        try {
+          window.dispatchEvent(new CustomEvent('admin:toast', { 
+            detail: { type: 'error', message: error.message || 'Invalid OTP. Please try again.' } 
+          }));
+        } catch(e) {}
+      }
+    } finally {
+      setIsVerifyingOTP(false);
+    }
+  };
+
+  const handleOTPChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value.replace(/\D/g, '').slice(0, 6);
+    setOtpCode(value);
+  };
+
+  const handleLocationDetect = () => {
+    if (navigator.geolocation) {
+      setIsDetectingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude.toFixed(6);
+          const lng = position.coords.longitude.toFixed(6);
+          setFormData(prev => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng
+          }));
+          // Clear location validation errors if they exist
+          if (validationErrors.includes('latitude') || validationErrors.includes('longitude')) {
+            setValidationErrors(prev => prev.filter(err => err !== 'latitude' && err !== 'longitude'));
+          }
+          setIsDetectingLocation(false);
+          try {
+            window.dispatchEvent(new CustomEvent('admin:toast', { 
+              detail: { type: 'success', message: 'Location detected successfully!' } 
+            }));
+          } catch(e) {}
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          setIsDetectingLocation(false);
+          let errorMessage = 'Unable to detect location. Please enter manually.';
+          if (error.code === 1) {
+            errorMessage = 'Location access denied. Please enable location permissions.';
+          } else if (error.code === 2) {
+            errorMessage = 'Location unavailable. Please enter manually.';
+          } else if (error.code === 3) {
+            errorMessage = 'Location request timed out. Please try again.';
+          }
+          try {
+            window.dispatchEvent(new CustomEvent('admin:toast', { 
+              detail: { type: 'error', message: errorMessage } 
+            }));
+          } catch(e) {}
+        }
+      );
+    } else {
+      try {
+        window.dispatchEvent(new CustomEvent('admin:toast', { 
+          detail: { type: 'error', message: 'Geolocation is not supported by your browser.' } 
+        }));
+      } catch(e) {}
+    }
+  };
+
+  const handleServiceToggle = (service: string) => {
+    setFormData(prev => ({
+      ...prev,
+      services: prev.services.includes(service)
+        ? prev.services.filter(s => s !== service)
+        : [...prev.services, service]
+    }));
+    // Clear validation error if services are selected
+    if (validationErrors.includes('services')) {
+      setValidationErrors(prev => prev.filter(err => err !== 'services'));
+    }
+  };
+
+  const validateForm = () => {
+    const errors: string[] = [];
+    
+    if (!formData.name.trim()) errors.push('name');
+    
+    // Email validation (now required)
+    if (!formData.email.trim()) {
+      errors.push('email');
+    } else if (!isValidEmail(formData.email)) {
+      errors.push('email');
+    }
+    
+    // Phone validation (now optional - only validate if provided)
+    if (formData.phone.trim() && (formData.phone.length !== 9 || (!formData.phone.startsWith('9') && !formData.phone.startsWith('7')))) {
+      errors.push('phone');
+    }
+    
+    if (!formData.address.trim()) errors.push('address');
+    
+    // Opening hours validation
+    if (!formData.openingHoursType) {
+      errors.push('openingHoursType');
+    } else if (formData.openingHoursType === 'custom' && !formData.customOpeningHours.trim()) {
+      errors.push('customOpeningHours');
+    }
+    
+    if (!formData.ownership.trim()) errors.push('ownership');
+    if (!formData.username.trim()) errors.push('username');
+    
+    // Validate latitude and longitude
+    if (!formData.latitude.trim()) {
+      errors.push('latitude');
+    } else {
+      const lat = parseFloat(formData.latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        errors.push('latitude');
+      }
+    }
+    
+    if (!formData.longitude.trim()) {
+      errors.push('longitude');
+    } else {
+      const lng = parseFloat(formData.longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        errors.push('longitude');
+      }
+    }
+    
+    if (formData.type === 'hospital' && !formData.hospitalType) errors.push('hospitalType');
+    if (formData.type === 'pharmacy' && !formData.pharmacyType) errors.push('pharmacyType');
+    
+    if (formData.services.length === 0) errors.push('services');
+    
+    // Validate password if provided (optional but must be strong if provided)
+    if (formData.password && !isValidPassword(formData.password)) {
+      errors.push('password');
+    }
+    
+    return errors;
+  };
+
+  const createFacility = async () => {
+    setIsSubmitting(true);
+    try {
+      // Generate a unique facility ID
+      const facilityId = `FAC-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      
+      const facility = {
+        ...formData,
+        _id: facilityId, // Add the generated ID
+        agentId: facilityId, // Also add as agentId for compatibility
+        openingHours: formData.openingHoursType === '24hours' 
+          ? '24 hours' 
+          : formData.customOpeningHours,
+        location: {
+          type: 'Point',
+          coordinates: [parseFloat(formData.longitude), parseFloat(formData.latitude)]
+        },
+        isActive: true, // Set active by default
+        createdAt: new Date().toISOString(),
+        emergency: formData.emergency, // Include emergency status
+        notes: formData.notes || undefined, // Include notes (optional)
+        password: formData.password || undefined // Include password (optional)
+      };
+      await onCreate(facility);
+      handleClose();
+    } catch (error) {
+      console.error('Failed to create facility:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    
+    // Start OTP verification process
+    await handleSendOTP();
+  };
+
+  const isFormValid = () => {
+    return validateForm().length === 0;
+  };
+
+  const getCurrentServices = () => {
+    const typeKey = formData.type === 'hospital' ? formData.hospitalType : formData.pharmacyType;
+    const serviceMap = formData.type === 'hospital' ? HOSPITAL_SERVICE_MAP : PHARMACY_SERVICE_MAP;
+    return typeKey ? (serviceMap[typeKey] || []) : [];
+  };
+
+  // Email uniqueness validation
+  const checkEmailUniqueness = async (email: string) => {
+    if (!email || !isValidEmail(email)) {
+      setEmailExists(false);
+      return;
+    }
+
+    setCheckingEmail(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/facilities/check-email?email=${encodeURIComponent(email)}`);
+      
+      if (!response.ok) {
+        // If API fails, assume email is unique (don't block user)
+        console.warn('Email uniqueness API not available, assuming unique');
+        setEmailExists(false);
+        return;
+      }
+      
+      const data = await response.json();
+      setEmailExists(data.exists || false);
+    } catch (error) {
+      console.error('Error checking email uniqueness:', error);
+      setEmailExists(false);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
+  // Phone uniqueness validation
+  const checkPhoneUniqueness = async (phone: string) => {
+    if (!phone || phone.length < 9) {
+      setPhoneExists(false);
+      return;
+    }
+
+    setCheckingPhone(true);
+    try {
+      const formattedPhone = phone.startsWith('+251') ? phone : `+251${phone}`;
+      const response = await fetch(`http://localhost:5000/api/facilities/check-phone?phone=${encodeURIComponent(formattedPhone)}`);
+      
+      if (!response.ok) {
+        // If API fails, assume phone is unique (don't block user)
+        console.warn('Phone uniqueness API not available, assuming unique');
+        setPhoneExists(false);
+        return;
+      }
+      
+      const data = await response.json();
+      setPhoneExists(data.exists || false);
+    } catch (error) {
+      console.error('Error checking phone uniqueness:', error);
+      setPhoneExists(false);
+    } finally {
+      setCheckingPhone(false);
+    }
+  };
+
+  // Facility name uniqueness validation
+  const checkNameUniqueness = async (name: string) => {
+    if (!name || name.trim().length < 3) {
+      setNameExists(false);
+      return;
+    }
+
+    setCheckingName(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/facilities/check-name?name=${encodeURIComponent(name.trim())}&type=${formData.type}`);
+      
+      if (!response.ok) {
+        // If API fails, assume name is unique (don't block user)
+        console.warn('Name uniqueness API not available, assuming unique');
+        setNameExists(false);
+        return;
+      }
+      
+      const data = await response.json();
+      setNameExists(data.exists || false); // Ensure boolean
+    } catch (error) {
+      console.error('Error checking name uniqueness:', error);
+      // On network error, assume name is unique to not block user
+      setNameExists(false);
+    } finally {
+      setCheckingName(false);
+    }
+  };
+
+  // Reusable section for password, emergency, and notes
+  const renderAdditionalInfo = () => (
+    <>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Password (Optional)"
+          type={showPassword ? 'text' : 'password'}
+          value={formData.password}
+          onChange={handleInputChange('password')}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><Person /></InputAdornment>,
+            endAdornment: (
+              <InputAdornment position="end">
+                <Button
+                  onClick={() => setShowPassword(!showPassword)}
+                  sx={{ minWidth: 'auto', p: 0 }}
+                >
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </Button>
+              </InputAdornment>
+            )
+          }}
+          error={validationErrors.includes('password')}
+          helperText={
+            validationErrors.includes('password') 
+              ? 'Password must be at least 8 characters with uppercase, lowercase, number, and special character' 
+              : 'Optional: Leave blank for auto-generated password'
+          }
+        />
+      </Grid>
+
+      <Grid item xs={12} md={6}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={formData.emergency}
+              onChange={(e) => setFormData(prev => ({ ...prev, emergency: e.target.checked }))}
+              color="error"
+            />
+          }
+          label="Emergency Facility"
+          sx={{ mt: 1 }}
+        />
+      </Grid>
+
+      <Grid item xs={12}>
+        <TextField
+          fullWidth
+          label="Notes (Optional)"
+          value={formData.notes}
+          onChange={handleInputChange('notes')}
+          multiline
+          rows={3}
+          placeholder="Any additional information about this facility..."
+          helperText="Optional: Add any notes or special instructions"
+        />
+      </Grid>
+    </>
+  );
+
+  return (
+    <>
+      <Dialog 
+        open={open} 
+        onClose={handleClose} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '90vh',
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <DialogTitle>Create New Facility</DialogTitle>
+        <DialogContent sx={{ 
+          height: 'calc(90vh - 140px)', 
+          overflow: 'hidden',
+          p: 0
+        }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange} 
+            aria-label="Facility type tabs"
+            variant="fullWidth"
+            sx={{ 
+              borderBottom: 1, 
+              borderColor: 'divider',
+              minHeight: 'auto'
+            }}
+          >
+            <Tab label="Hospital" />
+            <Tab label="Pharmacy" />
+          </Tabs>
+
+        <TabPanel value={tabValue} index={0}>
+          <Typography variant="h6" gutterBottom>Create Hospital</Typography>
+          <Paper sx={{ p: 3, mb: 2, height: '100%', overflow: 'auto' }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Hospital Name"
+                  value={formData.name}
+                  onChange={handleInputChange('name')}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        {checkingName ? (
+                          <div style={{ width: 20, height: 20 }}>
+                            <div className="spinner" style={{ 
+                              border: '2px solid #f3f3f3', 
+                              borderTop: '2px solid #3f51b5', 
+                              borderRadius: '50%', 
+                              width: '16px', 
+                              height: '16px', 
+                              animation: 'spin 1s linear infinite' 
+                            }}></div>
+                          </div>
+                        ) : (
+                          <LocalHospital sx={{ color: nameExists ? 'error.main' : 'inherit' }} />
+                        )}
+                      </InputAdornment>
+                    ),
+                  }}
+                  error={validationErrors.includes('name') || nameExists}
+                  helperText={
+                    nameExists 
+                      ? 'This hospital name is already registered' 
+                      : validationErrors.includes('name') 
+                        ? 'Hospital name is required' 
+                        : 'Enter a unique hospital name'
+                  }
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleEmailChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {checkingEmail ? (
+                          <CircularProgress size={16} />
+                        ) : emailExists ? (
+                          <Error sx={{ color: 'error.main' }} />
+                        ) : formData.email && isValidEmail(formData.email) ? (
+                          <CheckCircle sx={{ color: 'success.main' }} />
+                        ) : (
+                          <Email />
+                        )}
+                      </InputAdornment>
+                    ),
+                  }}
+                  error={validationErrors.includes('email') || emailExists}
+                  helperText={
+                    emailExists 
+                      ? 'This email is already registered'
+                      : validationErrors.includes('email') 
+                        ? 'Please enter a valid email address' 
+                        : 'Email is required'
+                  }
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Phone (Optional)"
+                  value={formData.phone}
+                  onChange={handlePhoneChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <span style={{ fontSize: '16px' }}>🇪🇹</span>
+                        <Typography variant="body2">+251</Typography>
+                        {checkingPhone ? (
+                          <CircularProgress size={16} />
+                        ) : phoneExists ? (
+                          <Error sx={{ color: 'error.main' }} />
+                        ) : formData.phone && formData.phone.length === 9 ? (
+                          <CheckCircle sx={{ color: 'success.main' }} />
+                        ) : null}
+                      </InputAdornment>
+                    ),
+                  }}
+                  placeholder="9XXXXXXXX"
+                  error={validationErrors.includes('phone') || phoneExists}
+                  helperText={
+                    phoneExists
+                      ? 'This phone number is already registered'
+                      : validationErrors.includes('phone') 
+                        ? 'Phone must be 9 digits starting with 9 or 7' 
+                        : 'Optional: Enter 9-digit number starting with 9 or 7'
+                  }
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  value={formData.address}
+                  onChange={handleInputChange('address')}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><LocationOn /></InputAdornment>,
+                  }}
+                  error={validationErrors.includes('address')}
+                  helperText={validationErrors.includes('address') ? 'Address is required' : ''}
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('hospitalType')}>
+                  <InputLabel>Hospital Type</InputLabel>
+                  <Select
+                    value={formData.hospitalType}
+                    onChange={(e) => {
+                      handleInputChange('hospitalType')(e);
+                      setServicesDone(false);
+                    }}
+                    label="Hospital Type"
+                  >
+                    {HOSPITAL_TYPES.map(type => (
+                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    ))}
+                  </Select>
+                  {validationErrors.includes('hospitalType') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Hospital type is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('openingHoursType')}>
+                  <InputLabel>Opening Hours</InputLabel>
+                  <Select
+                    value={formData.openingHoursType}
+                    onChange={handleInputChange('openingHoursType')}
+                    label="Opening Hours"
+                    startAdornment={<InputAdornment position="start"><Schedule /></InputAdornment>}
+                  >
+                    <MenuItem value="24hours">24 Hours</MenuItem>
+                    <MenuItem value="custom">Custom</MenuItem>
+                  </Select>
+                  {validationErrors.includes('openingHoursType') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Opening hours type is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+              
+              {formData.openingHoursType === 'custom' && (
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Custom Opening Hours"
+                    value={formData.customOpeningHours}
+                    onChange={handleInputChange('customOpeningHours')}
+                    placeholder="e.g., 8:00 AM - 6:00 PM"
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><Schedule /></InputAdornment>,
+                    }}
+                    error={validationErrors.includes('customOpeningHours')}
+                    helperText={validationErrors.includes('customOpeningHours') ? 'Custom opening hours are required' : 'Enter time frame (e.g., 8:00 AM - 6:00 PM)'}
+                    required
+                  />
+                </Grid>
+              )}
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('ownership')}>
+                  <InputLabel>Ownership</InputLabel>
+                  <Select
+                    value={formData.ownership}
+                    onChange={handleInputChange('ownership')}
+                    label="Ownership"
+                    startAdornment={<InputAdornment position="start"><Business /></InputAdornment>}
+                  >
+                    <MenuItem value="Public">Public</MenuItem>
+                    <MenuItem value="Private">Private</MenuItem>
+                  </Select>
+                  {validationErrors.includes('ownership') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Ownership is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Username"
+                  value={formData.username}
+                  onChange={handleInputChange('username')}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Person /></InputAdornment>,
+                  }}
+                  error={validationErrors.includes('username')}
+                  helperText={validationErrors.includes('username') ? 'Username is required' : ''}
+                  required
+                />
+              </Grid>
+
+              {/* Password, Emergency, Notes - Always Visible */}
+              {renderAdditionalInfo()}
+
+              <Grid item xs={12}>
+                <Typography variant="subtitle1" gutterBottom>Location Coordinates</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={5}>
+                    <TextField
+                      fullWidth
+                      label="Latitude"
+                      value={formData.latitude}
+                      onChange={handleInputChange('latitude')}
+                      placeholder="e.g., -1.2921"
+                      error={validationErrors.includes('latitude')}
+                      helperText={validationErrors.includes('latitude') ? 'Invalid latitude (-90 to 90)' : 'Enter latitude'}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={5}>
+                    <TextField
+                      fullWidth
+                      label="Longitude"
+                      value={formData.longitude}
+                      onChange={handleInputChange('longitude')}
+                      placeholder="e.g., 36.8219"
+                      error={validationErrors.includes('longitude')}
+                      helperText={validationErrors.includes('longitude') ? 'Invalid longitude (-180 to 180)' : 'Enter longitude'}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={handleLocationDetect}
+                      disabled={isDetectingLocation}
+                      sx={{ height: '56px' }}
+                      title="Detect current location"
+                    >
+                      {isDetectingLocation ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <MyLocation />
+                      )}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle1" gutterBottom>Services</Typography>
+                {(() => {
+                  const currentServices = getCurrentServices();
+                  
+                  if (!formData.hospitalType) {
+                    return (
+                      <Alert severity="info" sx={{ mb: 2 }}>
+                        Select hospital type to see available services
+                      </Alert>
+                    );
+                  }
+
+                  if (servicesDone) {
+                    return (
+                      <Box>
+                        {formData.services.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            No services selected
+                          </Typography>
+                        ) : (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                            {formData.services.map(service => (
+                              <Chip key={service} label={service} size="small" />
+                            ))}
+                          </Box>
+                        )}
+                        <Button variant="outlined" onClick={() => setServicesDone(false)}>
+                          Edit Services
+                        </Button>
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Select services offered (choose any, then press Done)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                        {currentServices.map(service => {
+                          const isSelected = formData.services.includes(service);
+                          return (
+                            <Chip
+                              key={service}
+                              label={service}
+                              clickable
+                              color={isSelected ? 'primary' : 'default'}
+                              onClick={() => handleServiceToggle(service)}
+                              variant={isSelected ? 'filled' : 'outlined'}
+                            />
+                          );
+                        })}
+                      </Box>
+                      <Box sx={{ width: '100%' }}>
+                        <Button 
+                          variant="contained" 
+                          onClick={() => setServicesDone(true)}
+                          disabled={formData.services.length === 0}
+                        >
+                          Done
+                        </Button>
+                      </Box>
+                      {validationErrors.includes('services') && (
+                        <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                          Please select at least one service
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })()}
+              </Grid>
+            </Grid>
+          </Paper>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={1}>
+          <Typography variant="h6" gutterBottom>Create Pharmacy</Typography>
+          <Paper sx={{ p: 3, mb: 2, height: '100%', overflow: 'auto' }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Pharmacy Name"
+                  value={formData.name}
+                  onChange={handleInputChange('name')}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        {checkingName ? (
+                          <div style={{ width: 20, height: 20 }}>
+                            <div className="spinner" style={{ 
+                              border: '2px solid #f3f3f3', 
+                              borderTop: '2px solid #3f51b5', 
+                              borderRadius: '50%', 
+                              width: '16px', 
+                              height: '16px', 
+                              animation: 'spin 1s linear infinite' 
+                            }}></div>
+                          </div>
+                        ) : (
+                          <MedicalServices sx={{ color: nameExists ? 'error.main' : 'inherit' }} />
+                        )}
+                      </InputAdornment>
+                    ),
+                  }}
+                  error={validationErrors.includes('name') || nameExists}
+                  helperText={
+                    nameExists 
+                      ? 'This pharmacy name is already registered' 
+                      : validationErrors.includes('name') 
+                        ? 'Pharmacy name is required' 
+                        : 'Enter a unique pharmacy name'
+                  }
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleEmailChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {checkingEmail ? (
+                          <CircularProgress size={16} />
+                        ) : emailExists ? (
+                          <Error sx={{ color: 'error.main' }} />
+                        ) : formData.email && isValidEmail(formData.email) ? (
+                          <CheckCircle sx={{ color: 'success.main' }} />
+                        ) : (
+                          <Email />
+                        )}
+                      </InputAdornment>
+                    ),
+                  }}
+                  error={validationErrors.includes('email') || emailExists}
+                  helperText={
+                    emailExists 
+                      ? 'This email is already registered'
+                      : validationErrors.includes('email') 
+                        ? 'Please enter a valid email address' 
+                        : 'Email is required'
+                  }
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Phone (Optional)"
+                  value={formData.phone}
+                  onChange={handlePhoneChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <span style={{ fontSize: '16px' }}>🇪🇹</span>
+                        <Typography variant="body2">+251</Typography>
+                        {checkingPhone ? (
+                          <CircularProgress size={16} />
+                        ) : phoneExists ? (
+                          <Error sx={{ color: 'error.main' }} />
+                        ) : formData.phone && formData.phone.length === 9 ? (
+                          <CheckCircle sx={{ color: 'success.main' }} />
+                        ) : null}
+                      </InputAdornment>
+                    ),
+                  }}
+                  placeholder="9XXXXXXXX"
+                  error={validationErrors.includes('phone') || phoneExists}
+                  helperText={
+                    phoneExists
+                      ? 'This phone number is already registered'
+                      : validationErrors.includes('phone') 
+                        ? 'Phone must be 9 digits starting with 9 or 7' 
+                        : 'Optional: Enter 9-digit number starting with 9 or 7'
+                  }
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  value={formData.address}
+                  onChange={handleInputChange('address')}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><LocationOn /></InputAdornment>,
+                  }}
+                  error={validationErrors.includes('address')}
+                  helperText={validationErrors.includes('address') ? 'Address is required' : ''}
+                  required
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('pharmacyType')}>
+                  <InputLabel>Pharmacy Type</InputLabel>
+                  <Select
+                    value={formData.pharmacyType}
+                    onChange={(e) => {
+                      handleInputChange('pharmacyType')(e);
+                      setServicesDone(false);
+                    }}
+                    label="Pharmacy Type"
+                  >
+                    {PHARMACY_TYPES.map(type => (
+                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    ))}
+                  </Select>
+                  {validationErrors.includes('pharmacyType') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Pharmacy type is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('openingHoursType')}>
+                  <InputLabel>Opening Hours</InputLabel>
+                  <Select
+                    value={formData.openingHoursType}
+                    onChange={handleInputChange('openingHoursType')}
+                    label="Opening Hours"
+                    startAdornment={<InputAdornment position="start"><Schedule /></InputAdornment>}
+                  >
+                    <MenuItem value="24hours">24 Hours</MenuItem>
+                    <MenuItem value="custom">Custom</MenuItem>
+                  </Select>
+                  {validationErrors.includes('openingHoursType') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Opening hours type is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+              
+              {formData.openingHoursType === 'custom' && (
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Custom Opening Hours"
+                    value={formData.customOpeningHours}
+                    onChange={handleInputChange('customOpeningHours')}
+                    placeholder="e.g., 8:00 AM - 6:00 PM"
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><Schedule /></InputAdornment>,
+                    }}
+                    error={validationErrors.includes('customOpeningHours')}
+                    helperText={validationErrors.includes('customOpeningHours') ? 'Custom opening hours are required' : 'Enter time frame (e.g., 8:00 AM - 6:00 PM)'}
+                    required
+                  />
+                </Grid>
+              )}
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required error={validationErrors.includes('ownership')}>
+                  <InputLabel>Ownership</InputLabel>
+                  <Select
+                    value={formData.ownership}
+                    onChange={handleInputChange('ownership')}
+                    label="Ownership"
+                    startAdornment={<InputAdornment position="start"><Business /></InputAdornment>}
+                  >
+                    <MenuItem value="Public">Public</MenuItem>
+                    <MenuItem value="Private">Private</MenuItem>
+                  </Select>
+                  {validationErrors.includes('ownership') && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                      Ownership is required
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Username"
+                  value={formData.username}
+                  onChange={handleInputChange('username')}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Person /></InputAdornment>,
+                  }}
+                  error={validationErrors.includes('username')}
+                  helperText={validationErrors.includes('username') ? 'Username is required' : ''}
+                  required
+                />
+              </Grid>
+
+              {/* Password, Emergency, Notes - Always Visible */}
+              {renderAdditionalInfo()}
+
+              <Grid item xs={12}>
+                <Typography variant="subtitle1" gutterBottom>Location Coordinates</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={5}>
+                    <TextField
+                      fullWidth
+                      label="Latitude"
+                      value={formData.latitude}
+                      onChange={handleInputChange('latitude')}
+                      placeholder="e.g., -1.2921"
+                      error={validationErrors.includes('latitude')}
+                      helperText={validationErrors.includes('latitude') ? 'Invalid latitude (-90 to 90)' : 'Enter latitude'}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={5}>
+                    <TextField
+                      fullWidth
+                      label="Longitude"
+                      value={formData.longitude}
+                      onChange={handleInputChange('longitude')}
+                      placeholder="e.g., 36.8219"
+                      error={validationErrors.includes('longitude')}
+                      helperText={validationErrors.includes('longitude') ? 'Invalid longitude (-180 to 180)' : 'Enter longitude'}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={handleLocationDetect}
+                      disabled={isDetectingLocation}
+                      sx={{ height: '56px' }}
+                      title="Detect current location"
+                    >
+                      {isDetectingLocation ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <MyLocation />
+                      )}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle1" gutterBottom>Services</Typography>
+                {(() => {
+                  const currentServices = getCurrentServices();
+                  
+                  if (!formData.pharmacyType) {
+                    return (
+                      <Alert severity="info" sx={{ mb: 2 }}>
+                        Select pharmacy type to see available services
+                      </Alert>
+                    );
+                  }
+
+                  if (servicesDone) {
+                    return (
+                      <Box>
+                        {formData.services.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            No services selected
+                          </Typography>
+                        ) : (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                            {formData.services.map(service => (
+                              <Chip key={service} label={service} size="small" />
+                            ))}
+                          </Box>
+                        )}
+                        <Button variant="outlined" onClick={() => setServicesDone(false)}>
+                          Edit Services
+                        </Button>
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Select services offered (choose any, then press Done)
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                        {currentServices.map(service => {
+                          const isSelected = formData.services.includes(service);
+                          return (
+                            <Chip
+                              key={service}
+                              label={service}
+                              clickable
+                              color={isSelected ? 'primary' : 'default'}
+                              onClick={() => handleServiceToggle(service)}
+                              variant={isSelected ? 'filled' : 'outlined'}
+                            />
+                          );
+                        })}
+                      </Box>
+                      <Box sx={{ width: '100%' }}>
+                        <Button 
+                          variant="contained" 
+                          onClick={() => setServicesDone(true)}
+                          disabled={formData.services.length === 0}
+                        >
+                          Done
+                        </Button>
+                      </Box>
+                      {validationErrors.includes('services') && (
+                        <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                          Please select at least one service
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })()}
+              </Grid>
+            </Grid>
+          </Paper>
+        </TabPanel>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button 
+          onClick={handleClose}
+          startIcon={<Cancel />}
+          disabled={isSubmitting}
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleCreate} 
+          variant="contained" 
+          startIcon={isSubmitting ? <CircularProgress size={20} /> : <Save />}
+          disabled={!isFormValid() || isSubmitting}
+        >
+          {isSubmitting ? 'Creating...' : 'Create Facility'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* OTP Verification Dialog */}
+      <Dialog open={showOTPDialog} onClose={() => setShowOTPDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Verify Your Identity</DialogTitle>
+        <DialogContent>
+          {/* OTP Lock Warning */}
+          {isOtpLocked && otpLockedUntil && (
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              bgcolor: 'error.50', 
+              borderRadius: 1, 
+              border: 1, 
+              borderColor: 'error.200'
+            }}>
+              <Typography variant="body2" color="error.main" fontWeight="bold" sx={{ mb: 1 }}>
+                OTP Verification Locked
+              </Typography>
+              <Typography variant="body2" color="error.main">
+                Too many failed attempts. OTP is locked for 30 minutes.
+              </Typography>
+              <Typography variant="caption" color="error.main" sx={{ mt: 1 }}>
+                Available after: {otpLockedUntil.toLocaleTimeString()}
+              </Typography>
+            </Box>
+          )}
+
+          <Typography variant="body1" gutterBottom>
+            Enter the 6-digit code sent to:
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1, 
+            mb: 3, 
+            p: 2, 
+            bgcolor: 'grey.50', 
+            borderRadius: 1 
+          }}>
+            <Email sx={{ color: 'primary.main' }} />
+            <Typography variant="body2" fontWeight="medium">
+              {formData.email}
+            </Typography>
+          </Box>
+          
+          <TextField
+            fullWidth
+            label="OTP Code"
+            value={otpCode}
+            onChange={handleOTPChange}
+            placeholder="000000"
+            inputProps={{ maxLength: 6, style: { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' } }}
+            sx={{ my: 3 }}
+          />
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Didn\'t receive the code?'}
+            </Typography>
+            
+            {resendTimer === 0 && (
+              <Button
+                variant="text"
+                onClick={handleSendOTP}
+                disabled={isSendingOTP}
+                startIcon={isSendingOTP ? <CircularProgress size={16} /> : null}
+              >
+                Resend
+              </Button>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setShowOTPDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleVerifyOTP}
+            variant="contained"
+            disabled={otpCode.length !== 6 || isVerifyingOTP || isOtpLocked}
+            startIcon={isVerifyingOTP ? <CircularProgress size={20} /> : null}
+          >
+            {isOtpLocked ? 'Locked' : isVerifyingOTP ? 'Verifying...' : 'Verify & Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+          </>
+  );
+}
