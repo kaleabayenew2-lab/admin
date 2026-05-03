@@ -24,7 +24,7 @@ function applyDarkMode(isDark: boolean) {
 // Initialize socket connection
 function initSocket() {
   try {
-    const socket: Socket = io('http://localhost:5000', { query: { admin: '1' } });
+    const socket: Socket = io('https://backend-6tzt.onrender.com', { query: { admin: '1' } });
     socket.on('connect', () => {
       try { socket.emit('register', { role: 'admin' }); } catch {}
     });
@@ -42,7 +42,7 @@ async function initAndRender() {
   initSocket();
 
   try {
-    const res = await fetch('http://localhost:5000/api/admin/settings');
+    const res = await fetch('https://backend-6tzt.onrender.com/api/admin/settings');
     if (res.ok) {
       const data = await res.json();
       if (data?.darkMode !== undefined) applyDarkMode(!!data.darkMode);
